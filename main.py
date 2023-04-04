@@ -66,7 +66,10 @@ def logout():
 
 @app.route('/download')
 def download():
-    pass
+    # to open directly on the browser
+    return send_from_directory(directory='static', path="files/cheat_sheet.pdf")
+    # to open a window to register
+    return send_from_directory(directory='static', path="files/cheat_sheet.pdf", as_attachment=True)
 
 
 if __name__ == "__main__":
