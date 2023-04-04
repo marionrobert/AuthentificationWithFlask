@@ -5,6 +5,8 @@ from flask_login import UserMixin, login_user, LoginManager, login_required, cur
 import os
 
 app = Flask(__name__)
+# if "RuntimeError: Working outside of application context.", add the line below:
+app.app_context().push()
 
 app.config['SECRET_KEY'] = os.environ["secret_key"]
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
@@ -18,8 +20,10 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(100), unique=True)
     password = db.Column(db.String(100))
     name = db.Column(db.String(1000))
-#Line below only required once, when creating DB. 
-# db.create_all()
+
+
+#Line below only required once, when creating DB.
+db.create_all()
 
 
 @app.route('/')
@@ -27,8 +31,20 @@ def home():
     return render_template("index.html")
 
 
-@app.route('/register')
+@app.route('/register', methods=["GET", "POST"])
 def register():
+    if request.method == "POST":
+        name = request.form.get("name")
+        email = request.form.get("email")
+        password = request.form.get("password")
+        new_user = User(
+            name=name,
+            email=email,
+            password=password
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        return redirect(url_for('secrets', name=new_user.name))
     return render_template("register.html")
 
 
@@ -39,7 +55,8 @@ def login():
 
 @app.route('/secrets')
 def secrets():
-    return render_template("secrets.html")
+    user_name = request.args.get("name")
+    return render_template("secrets.html", name=user_name)
 
 
 @app.route('/logout')
