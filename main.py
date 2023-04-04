@@ -13,8 +13,16 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+login_manager = LoginManager()
+login_manager.init_app(app)
 
-##CREATE TABLE IN DB
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+##CREATE TABLE
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), unique=True)
@@ -22,7 +30,6 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String(1000))
 
 
-#Line below only required once, when creating DB.
 # db.create_all()
 
 
@@ -39,40 +46,58 @@ def register():
             method='pbkdf2:sha256',
             salt_length=8
         )
-        password = hash_and_salted_password.split("$")[2]
         new_user = User(
-            name=request.form.get("name"),
-            email=request.form.get("email"),
-            password=password
+            email=request.form.get('email'),
+            name=request.form.get('name'),
+            password=hash_and_salted_password,
         )
         db.session.add(new_user)
         db.session.commit()
-        return redirect(url_for('secrets', name=new_user.name))
+
+        # Log in and authenticate user after adding details to database.
+        login_user(new_user)
+
+        return redirect(url_for("secrets"))
+
     return render_template("register.html")
 
 
-@app.route('/login')
+@app.route('/login', methods=["GET", "POST"])
 def login():
+    if request.method == "POST":
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        # Find user by email entered.
+        user = User.query.filter_by(email=email).first()
+        if user:
+            # Check stored password hash against entered password hashed.
+            if check_password_hash(user.password, password):
+                login_user(user)
+                return redirect(url_for('secrets'))
+        else:
+            print("no user with this email")
+
     return render_template("login.html")
 
 
 @app.route('/secrets')
+@login_required
 def secrets():
-    user_name = request.args.get("name")
-    return render_template("secrets.html", name=user_name)
+    print(current_user.name)
+    return render_template("secrets.html", name=current_user.name)
 
 
 @app.route('/logout')
 def logout():
-    pass
+    logout_user()
+    return redirect(url_for('home'))
 
 
 @app.route('/download')
+@login_required
 def download():
-    # to open directly on the browser
-    return send_from_directory(directory='static', path="files/cheat_sheet.pdf")
-    # to open a window to register
-    return send_from_directory(directory='static', path="files/cheat_sheet.pdf", as_attachment=True)
+    return send_from_directory('static', filename="files/cheat_sheet.pdf")
 
 
 if __name__ == "__main__":
